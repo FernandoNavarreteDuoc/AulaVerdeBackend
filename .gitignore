@@ -1,6 +1,4 @@
-# Variables de entorno y credenciales
+# Variables de entorno
 .env
 .env.*
 !.env.example
-application-local.properties
-application-local.yml

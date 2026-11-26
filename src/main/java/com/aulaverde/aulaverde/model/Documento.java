@@ -35,9 +35,9 @@ public class Documento {
     @Column(nullable = false)
     private String tipoArchivo;
 
-    @Column(nullable = false, length = 2000)
-    private String urlArchivo;
-
+    @Column(nullable = false, unique = true, length = 500)
+    private String claveArchivo;
+    
     @Column(nullable = false)
     private Long tamano;
 
