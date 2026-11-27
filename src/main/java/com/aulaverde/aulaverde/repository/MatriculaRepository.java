@@ -19,4 +19,8 @@ public interface MatriculaRepository extends JpaRepository<Matricula, Integer> {
     boolean existsByEstudianteIdAndCursoId(
         Integer estudianteId, Integer cursoId
     );
+
+    List<Matricula> findByCursoIdAndActivoTrue(Integer cursoId);
+
+    List<Matricula> findByEstudianteIdAndActivoTrue(Integer estudianteId);
 }
