@@ -28,7 +28,7 @@ public class SecurityConfig {
 
         http
 
-            // Desactivar CSRF para autenticación Bearer
+            // Desactivar CSRF para autenticación JWT
             .csrf(csrf -> csrf.disable())
 
             // No utilizar sesiones HTTP
@@ -59,8 +59,37 @@ public class SecurityConfig {
                         "/v3/api-docs/**"
                 ).permitAll()
 
-                // Bloquear temporalmente los demás endpoints
-                // hasta implementar sus permisos
+                // Consultar roles
+                .requestMatchers(
+                        HttpMethod.GET,
+                        "/api/roles",
+                        "/api/roles/**"
+                ).authenticated()
+
+                // Bloquear gestión de usuarios
+                // hasta implementar permisos individuales
+                .requestMatchers(
+                        "/api/usuarios",
+                        "/api/usuarios/**"
+                ).denyAll()
+
+                // Bloquear recursos hasta comprobar propietarios
+                .requestMatchers(
+                        "/api/cursos",
+                        "/api/cursos/**",
+                        "/api/rubricas",
+                        "/api/rubricas/**",
+                        "/api/matriculas",
+                        "/api/matriculas/**",
+                        "/api/evaluaciones",
+                        "/api/evaluaciones/**",
+                        "/api/calificaciones",
+                        "/api/calificaciones/**",
+                        "/api/documentos",
+                        "/api/documentos/**"
+                ).denyAll()
+
+                // Bloquear cualquier endpoint no autorizado
                 .anyRequest().denyAll()
             )
 
