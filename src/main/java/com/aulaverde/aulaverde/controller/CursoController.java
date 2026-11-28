@@ -3,6 +3,7 @@ package com.aulaverde.aulaverde.controller;
 import com.aulaverde.aulaverde.DTO.CursoDTO;
 import com.aulaverde.aulaverde.service.CursoService;
 import com.aulaverde.aulaverde.service.UsuarioService;
+import com.aulaverde.aulaverde.service.MatriculaService;
 
 import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.annotations.Operation;
@@ -27,7 +28,10 @@ public class CursoController {
     @Autowired
     private UsuarioService usuarioService;
 
-    // Listar todos los cursos (bloqueado temporalmente)
+    @Autowired
+    private MatriculaService matriculaService;
+
+    // Listar todos los cursos (bloqueado)
     @Operation(summary = "Listar todos los cursos")
     @PreAuthorize("denyAll()")
     @GetMapping
@@ -36,7 +40,7 @@ public class CursoController {
         return ResponseEntity.ok(cursoService.listar());
     }
 
-    // Listar cursos de un usuario
+    // Listar cursos de un docente o instructor
     @Operation(summary = "Listar cursos propios")
     @PreAuthorize("hasAnyRole('DOCENTE', 'INSTRUCTOR')")
     @GetMapping("/usuario/{usuarioId}")
@@ -53,9 +57,34 @@ public class CursoController {
                 cursoService.listarPorUsuario(usuarioId));
     }
 
+    // Listar cursos de un estudiante matriculado
+    @Operation(summary = "Listar cursos en los que está matriculado el estudiante")
+    @PreAuthorize("hasRole('ESTUDIANTE')")
+    @GetMapping("/estudiante/{estudianteId}")
+    public ResponseEntity<List<CursoDTO>> listarPorEstudiante(
+            @PathVariable Integer estudianteId,
+            Principal principal) {
+
+        // Comprobar identidad del estudiante
+        if (!esPropietario(estudianteId, principal)) {
+            return ResponseEntity.status(403).build();
+        }
+
+        // Obtener cursos con matrículas activas
+        List<CursoDTO> cursos = matriculaService
+                .listarPorEstudiante(estudianteId)
+                .stream()
+                .filter(m -> Boolean.TRUE.equals(m.getActivo()))
+                .map(m -> cursoService.buscarPorId(m.getCursoId()))
+                .filter(c -> Boolean.TRUE.equals(c.getActivo()))
+                .toList();
+
+        return ResponseEntity.ok(cursos);
+    }
+
     // Buscar curso por ID
-    @Operation(summary = "Consultar curso propio")
-    @PreAuthorize("hasAnyRole('DOCENTE', 'INSTRUCTOR')")
+    @Operation(summary = "Consultar un curso propio o matriculado")
+    @PreAuthorize("hasAnyRole('DOCENTE', 'INSTRUCTOR', 'ESTUDIANTE')")
     @GetMapping("/{id}")
     public ResponseEntity<CursoDTO> buscarPorId(
             @PathVariable Integer id,
@@ -63,8 +92,18 @@ public class CursoController {
 
         CursoDTO curso = cursoService.buscarPorId(id);
 
-        // Comprobar propietario del curso
-        if (!esPropietario(curso.getUsuarioId(), principal)) {
+        // Permitir acceso al propietario del curso
+        if (esPropietario(curso.getUsuarioId(), principal)) {
+            return ResponseEntity.ok(curso);
+        }
+
+        // Comprobar que el curso esté activo
+        if (!Boolean.TRUE.equals(curso.getActivo())) {
+            return ResponseEntity.status(403).build();
+        }
+
+        // Comprobar matrícula activa del estudiante
+        if (!estaMatriculado(id, principal)) {
             return ResponseEntity.status(403).build();
         }
 
@@ -150,7 +189,7 @@ public class CursoController {
         return ResponseEntity.noContent().build();
     }
 
-    // Comprobar si el usuario autenticado es el propietario
+    // Comprobar identidad del usuario autenticado
     private boolean esPropietario(
             Integer usuarioId,
             Principal principal) {
@@ -158,5 +197,18 @@ public class CursoController {
         return usuarioService.buscarPorId(usuarioId)
                 .getCorreo()
                 .equals(principal.getName());
+    }
+
+    // Comprobar si el estudiante tiene una matrícula activa
+    private boolean estaMatriculado(
+            Integer cursoId,
+            Principal principal) {
+
+        return matriculaService.listarPorCurso(cursoId)
+                .stream()
+                .filter(m -> Boolean.TRUE.equals(m.getActivo()))
+                .anyMatch(m ->
+                        esPropietario(
+                                m.getEstudianteId(), principal));
     }
 }

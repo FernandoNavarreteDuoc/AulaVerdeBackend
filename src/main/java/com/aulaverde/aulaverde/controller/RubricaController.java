@@ -1,8 +1,15 @@
 package com.aulaverde.aulaverde.controller;
 
 import com.aulaverde.aulaverde.DTO.RubricaDTO;
+import com.aulaverde.aulaverde.DTO.CursoDTO;
+import com.aulaverde.aulaverde.DTO.EvaluacionDTO;
+import com.aulaverde.aulaverde.DTO.MatriculaDTO;
+
 import com.aulaverde.aulaverde.service.RubricaService;
 import com.aulaverde.aulaverde.service.UsuarioService;
+import com.aulaverde.aulaverde.service.MatriculaService;
+import com.aulaverde.aulaverde.service.EvaluacionService;
+import com.aulaverde.aulaverde.service.CursoService;
 
 import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.annotations.Operation;
@@ -26,6 +33,15 @@ public class RubricaController {
 
     @Autowired
     private UsuarioService usuarioService;
+
+    @Autowired
+    private MatriculaService matriculaService;
+
+    @Autowired
+    private EvaluacionService evaluacionService;
+
+    @Autowired
+    private CursoService cursoService;
 
     // Listar todas las rúbricas (bloqueado)
     @Operation(summary = "Listar todas las rúbricas")
@@ -63,12 +79,51 @@ public class RubricaController {
 
         RubricaDTO rubrica = rubricaService.buscarPorId(id);
 
-        // Comprobar propietario de la rúbrica
+        // Comprobar propietario
         if (!esPropietario(rubrica.getUsuarioId(), principal)) {
             return ResponseEntity.status(403).build();
         }
 
         return ResponseEntity.ok(rubrica);
+    }
+
+    // Consultar rúbrica asociada a una evaluación
+    @Operation(summary = "Consultar la rúbrica de una evaluación autorizada")
+    @PreAuthorize("hasAnyRole('DOCENTE', 'INSTRUCTOR', 'ESTUDIANTE')")
+    @GetMapping("/evaluacion/{evaluacionId}")
+    public ResponseEntity<RubricaDTO> buscarPorEvaluacion(
+            @PathVariable Integer evaluacionId,
+            Principal principal) {
+
+        EvaluacionDTO evaluacion =
+                evaluacionService.buscarPorId(evaluacionId);
+
+        CursoDTO curso =
+                cursoService.buscarPorId(evaluacion.getCursoId());
+
+        // Permitir acceso al propietario del curso
+        if (esPropietario(curso.getUsuarioId(), principal)) {
+
+            return ResponseEntity.ok(
+                    rubricaService.buscarPorId(
+                            evaluacion.getRubricaId()));
+        }
+
+        // Comprobar que el curso y la evaluación estén activos
+        if (!Boolean.TRUE.equals(curso.getActivo())
+                || !Boolean.TRUE.equals(evaluacion.getActivo())) {
+
+            return ResponseEntity.status(403).build();
+        }
+
+        // Comprobar matrícula activa del estudiante
+        if (!estaMatriculado(curso.getId(), principal)) {
+            return ResponseEntity.status(403).build();
+        }
+
+        return ResponseEntity.ok(
+                rubricaService.buscarPorId(
+                        evaluacion.getRubricaId()));
     }
 
     // Crear rúbrica
@@ -130,7 +185,7 @@ public class RubricaController {
         return ResponseEntity.noContent().build();
     }
 
-    // Comprobar si el usuario autenticado es el propietario
+    // Comprobar identidad del usuario autenticado
     private boolean esPropietario(
             Integer usuarioId,
             Principal principal) {
@@ -138,5 +193,20 @@ public class RubricaController {
         return usuarioService.buscarPorId(usuarioId)
                 .getCorreo()
                 .equals(principal.getName());
+    }
+
+    // Comprobar matrícula activa del estudiante
+    private boolean estaMatriculado(
+            Integer cursoId,
+            Principal principal) {
+
+        List<MatriculaDTO> matriculas =
+                matriculaService.listarPorCurso(cursoId);
+
+        return matriculas.stream()
+                .filter(m -> Boolean.TRUE.equals(m.getActivo()))
+                .anyMatch(m ->
+                        esPropietario(
+                                m.getEstudianteId(), principal));
     }
 }

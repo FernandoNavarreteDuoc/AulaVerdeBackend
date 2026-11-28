@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.*;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.annotations.Operation;
 
+import java.security.Principal;
 import java.util.List;
 
 @RestController
@@ -21,7 +22,7 @@ public class UsuarioController {
     @Autowired
     private UsuarioService usuarioService;
 
-    // Listar todos los usuarios
+    // Listar todos los usuarios (bloqueado)
     @Operation(summary = "Listar todos los usuarios")
     @PreAuthorize("denyAll()")
     @GetMapping
@@ -30,7 +31,7 @@ public class UsuarioController {
         return ResponseEntity.ok(usuarioService.listar());
     }
 
-    // Listar usuarios activos
+    // Listar usuarios activos (bloqueado)
     @Operation(summary = "Listar usuarios activos")
     @PreAuthorize("denyAll()")
     @GetMapping("/activos")
@@ -46,7 +47,7 @@ public class UsuarioController {
     @GetMapping("/{id}")
     public ResponseEntity<UsuarioDTO> buscarPorId(
             @PathVariable Integer id,
-            java.security.Principal principal) {
+            Principal principal) {
 
         UsuarioDTO usuario = usuarioService.buscarPorId(id);
 
@@ -58,15 +59,26 @@ public class UsuarioController {
         return ResponseEntity.ok(usuario);
     }
 
-    // Listar usuarios por rol
-    @Operation(summary = "Listar usuarios por rol")
-    @PreAuthorize("denyAll()")
+    // Listar estudiantes activos para matricularlos
+    @Operation(summary = "Consultar estudiantes disponibles para matricular")
+    @PreAuthorize("hasAnyRole('DOCENTE', 'INSTRUCTOR')")
     @GetMapping("/rol/{nombreRol}")
     public ResponseEntity<List<UsuarioDTO>> listarPorRol(
             @PathVariable String nombreRol) {
 
-        return ResponseEntity.ok(
-                usuarioService.listarPorRol(nombreRol));
+        // Permitir solamente la consulta de estudiantes
+        if (!"ESTUDIANTE".equalsIgnoreCase(nombreRol)) {
+            return ResponseEntity.status(403).build();
+        }
+
+        // Obtener solamente estudiantes activos
+        List<UsuarioDTO> estudiantes = usuarioService
+                .listarPorRol("ESTUDIANTE")
+                .stream()
+                .filter(u -> Boolean.TRUE.equals(u.getActivo()))
+                .toList();
+
+        return ResponseEntity.ok(estudiantes);
     }
 
     // Actualizar información personal
@@ -76,7 +88,7 @@ public class UsuarioController {
     public ResponseEntity<UsuarioDTO> actualizar(
             @PathVariable Integer id,
             @RequestBody UsuarioDTO dto,
-            java.security.Principal principal) {
+            Principal principal) {
 
         UsuarioDTO usuario = usuarioService.buscarPorId(id);
 
@@ -89,7 +101,26 @@ public class UsuarioController {
                 usuarioService.actualizar(id, dto));
     }
 
-    // Desactivar usuario
+    // Cambiar rol personal entre docente e instructor
+    @Operation(
+            summary = "Cambiar rol personal",
+            description = "Permite cambiar el rol propio entre DOCENTE e INSTRUCTOR"
+    )
+    @PreAuthorize("hasAnyRole('DOCENTE', 'INSTRUCTOR')")
+    @PatchMapping("/{id}/rol")
+    public ResponseEntity<UsuarioDTO> cambiarRol(
+            @PathVariable Integer id,
+            @RequestParam String nombreRol,
+            Principal principal) {
+
+        return ResponseEntity.ok(
+                usuarioService.cambiarRol(
+                        id,
+                        nombreRol,
+                        principal.getName()));
+    }
+
+    // Desactivar usuario (bloqueado)
     @Operation(summary = "Desactivar usuario")
     @PreAuthorize("denyAll()")
     @PatchMapping("/{id}/desactivar")
@@ -101,7 +132,7 @@ public class UsuarioController {
         return ResponseEntity.noContent().build();
     }
 
-    // Activar usuario
+    // Activar usuario (bloqueado)
     @Operation(summary = "Activar usuario")
     @PreAuthorize("denyAll()")
     @PatchMapping("/{id}/activar")
