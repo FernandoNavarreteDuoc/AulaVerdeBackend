@@ -4,12 +4,15 @@ import com.aulaverde.aulaverde.DTO.LoginDTO;
 import com.aulaverde.aulaverde.DTO.RegistroDTO;
 import com.aulaverde.aulaverde.DTO.UsuarioDTO;
 import com.aulaverde.aulaverde.DTO.RolDTO;
+import com.aulaverde.aulaverde.DTO.LoginResponseDTO;
 
 import com.aulaverde.aulaverde.model.Usuario;
 import com.aulaverde.aulaverde.model.Rol;
 
 import com.aulaverde.aulaverde.repository.UsuarioRepository;
 import com.aulaverde.aulaverde.repository.RolRepository;
+
+import com.aulaverde.aulaverde.security.JwtService;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -20,97 +23,111 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 @Service
 public class AuthService {
 
-    @Autowired
-    private UsuarioRepository usuarioRepository;
+        @Autowired
+        private UsuarioRepository usuarioRepository;
 
-    @Autowired
-    private RolRepository rolRepository;
+        @Autowired
+        private RolRepository rolRepository;
 
-    private final BCryptPasswordEncoder passwordEncoder =
-            new BCryptPasswordEncoder();
+        @Autowired
+        private JwtService jwtService;
 
-    // Registrar usuario
-    public UsuarioDTO registrar(RegistroDTO dto) {
+        private final BCryptPasswordEncoder passwordEncoder =
+                new BCryptPasswordEncoder();
 
-        String correo = dto.getCorreo().trim().toLowerCase();
+        // Registrar usuario
+        public UsuarioDTO registrar(RegistroDTO dto) {
 
-        // Comprobar si el correo ya existe
-        if (usuarioRepository.existsByCorreo(correo)) {
-            throw new ResponseStatusException(
-                    HttpStatus.CONFLICT,
-                    "El correo ya está registrado");
+                String correo = dto.getCorreo().trim().toLowerCase();
+
+                // Comprobar si el correo ya existe
+                if (usuarioRepository.existsByCorreo(correo)) {
+                throw new ResponseStatusException(
+                        HttpStatus.CONFLICT,
+                        "El correo ya está registrado");
+                }
+
+                // Buscar rol predeterminado
+                Rol rol = rolRepository.findByNombre("ESTUDIANTE")
+                        .orElseThrow(() -> new ResponseStatusException(
+                                HttpStatus.NOT_FOUND,
+                                "Rol no encontrado"));
+
+                // Crear usuario
+                Usuario usuario = new Usuario();
+
+                usuario.setNombre(dto.getNombre());
+                usuario.setApellido(dto.getApellido());
+                usuario.setCorreo(correo);
+
+                // Proteger contraseña mediante BCrypt
+                usuario.setContrasena(
+                        passwordEncoder.encode(dto.getContrasena()));
+
+                usuario.setActivo(true);
+                usuario.setRol(rol);
+
+                return convertirDTO(usuarioRepository.save(usuario));
         }
 
-        // Buscar rol predeterminado
-        Rol rol = rolRepository.findByNombre("ESTUDIANTE")
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND,
-                        "Rol no encontrado"));
+        // Iniciar sesión
+        public LoginResponseDTO login(LoginDTO dto) {
 
-        // Crear usuario
-        Usuario usuario = new Usuario();
+                // Buscar usuario por correo
+                Usuario usuario = usuarioRepository
+                        .findByCorreo(dto.getCorreo().trim().toLowerCase())
+                        .orElseThrow(() -> new ResponseStatusException(
+                                HttpStatus.UNAUTHORIZED,
+                                "Correo o contraseña incorrectos"));
 
-        usuario.setNombre(dto.getNombre());
-        usuario.setApellido(dto.getApellido());
-        usuario.setCorreo(correo);
+                // Validar contraseña
+                if (!passwordEncoder.matches(
+                        dto.getContrasena(),
+                        usuario.getContrasena())) {
 
-        // Encriptar contraseña
-        usuario.setContrasena(
-                passwordEncoder.encode(dto.getContrasena()));
-
-        usuario.setActivo(true);
-        usuario.setRol(rol);
-
-        return convertirDTO(usuarioRepository.save(usuario));
-    }
-
-    // Iniciar sesión
-    public UsuarioDTO login(LoginDTO dto) {
-
-        String correo = dto.getCorreo().trim().toLowerCase();
-
-        // Buscar usuario por correo
-        Usuario usuario = usuarioRepository
-                .findByCorreo(correo)
-                .orElseThrow(() -> new ResponseStatusException(
+                throw new ResponseStatusException(
                         HttpStatus.UNAUTHORIZED,
-                        "Credenciales incorrectas"));
+                        "Correo o contraseña incorrectos");
+                }
 
-        // Comprobar contraseña
-        if (!passwordEncoder.matches(
-                dto.getContrasena(),
-                usuario.getContrasena())) {
+                // Validar estado del usuario
+                if (!Boolean.TRUE.equals(usuario.getActivo())) {
 
-            throw new ResponseStatusException(
-                    HttpStatus.UNAUTHORIZED,
-                    "Credenciales incorrectas");
+                throw new ResponseStatusException(
+                        HttpStatus.FORBIDDEN,
+                        "El usuario está desactivado");
+                }
+
+                // Generar token JWT
+                String token = jwtService.generarToken(
+                        usuario.getId(),
+                        usuario.getCorreo(),
+                        usuario.getRol().getNombre()
+                );
+
+                // Devolver token y datos del usuario
+                return new LoginResponseDTO(
+                        token,
+                        "Bearer",
+                        convertirDTO(usuario)
+                );
         }
 
-        // Comprobar si el usuario está activo
-        if (!Boolean.TRUE.equals(usuario.getActivo())) {
-            throw new ResponseStatusException(
-                    HttpStatus.FORBIDDEN,
-                    "El usuario está desactivado");
+        // Convertir modelo a DTO
+        private UsuarioDTO convertirDTO(Usuario usuario) {
+
+                RolDTO rolDTO = new RolDTO(
+                        usuario.getRol().getId(),
+                        usuario.getRol().getNombre()
+                );
+
+                return new UsuarioDTO(
+                        usuario.getId(),
+                        usuario.getNombre(),
+                        usuario.getApellido(),
+                        usuario.getCorreo(),
+                        usuario.getActivo(),
+                        rolDTO
+                );
         }
-
-        return convertirDTO(usuario);
-    }
-
-    // Convertir modelo a DTO
-    private UsuarioDTO convertirDTO(Usuario usuario) {
-
-        RolDTO rolDTO = new RolDTO(
-                usuario.getRol().getId(),
-                usuario.getRol().getNombre()
-        );
-
-        return new UsuarioDTO(
-                usuario.getId(),
-                usuario.getNombre(),
-                usuario.getApellido(),
-                usuario.getCorreo(),
-                usuario.getActivo(),
-                rolDTO
-        );
-    }
 }

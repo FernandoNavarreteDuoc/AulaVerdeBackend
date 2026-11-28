@@ -3,6 +3,8 @@ package com.aulaverde.aulaverde.controller;
 import com.aulaverde.aulaverde.DTO.LoginDTO;
 import com.aulaverde.aulaverde.DTO.RegistroDTO;
 import com.aulaverde.aulaverde.DTO.UsuarioDTO;
+import com.aulaverde.aulaverde.DTO.LoginResponseDTO;
+
 import com.aulaverde.aulaverde.service.AuthService;
 
 import jakarta.validation.Valid;
@@ -29,9 +31,9 @@ public class AuthController {
                 .body(authService.registrar(dto));
     }
 
-    // Iniciar sesión
+    // Iniciar sesión y generar token JWT
     @PostMapping("/login")
-    public ResponseEntity<UsuarioDTO> login(
+    public ResponseEntity<LoginResponseDTO> login(
             @Valid @RequestBody LoginDTO dto) {
 
         return ResponseEntity.ok(
