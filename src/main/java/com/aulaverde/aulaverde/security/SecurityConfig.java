@@ -1,5 +1,6 @@
 package com.aulaverde.aulaverde.security;
 
+import jakarta.servlet.DispatcherType;
 import jakarta.servlet.http.HttpServletResponse;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -45,6 +46,11 @@ public class SecurityConfig {
             // Configurar permisos de acceso
             .authorizeHttpRequests(auth -> auth
 
+                // Permitir respuestas de error
+                .dispatcherTypeMatchers(
+                        DispatcherType.ERROR
+                ).permitAll()
+
                 // Registro e inicio de sesión
                 .requestMatchers(
                         HttpMethod.POST,
@@ -56,7 +62,9 @@ public class SecurityConfig {
                 .requestMatchers(
                         "/swagger-ui/**",
                         "/swagger-ui.html",
-                        "/v3/api-docs/**"
+                        "/v3/api-docs",
+                        "/v3/api-docs/**",
+                        "/v3/api-docs.yaml"
                 ).permitAll()
 
                 // Consultar roles
@@ -66,28 +74,115 @@ public class SecurityConfig {
                         "/api/roles/**"
                 ).authenticated()
 
-                // Bloquear gestión de usuarios
-                // hasta implementar permisos individuales
+                // Permitir acceso a usuarios autenticados
                 .requestMatchers(
                         "/api/usuarios",
                         "/api/usuarios/**"
-                ).denyAll()
+                ).authenticated()
 
-                // Bloquear recursos hasta comprobar propietarios
+                // Permitir consultar y descargar documentos
                 .requestMatchers(
-                        "/api/cursos",
-                        "/api/cursos/**",
-                        "/api/rubricas",
-                        "/api/rubricas/**",
-                        "/api/matriculas",
-                        "/api/matriculas/**",
-                        "/api/evaluaciones",
-                        "/api/evaluaciones/**",
-                        "/api/calificaciones",
-                        "/api/calificaciones/**",
+                        HttpMethod.GET,
                         "/api/documentos",
                         "/api/documentos/**"
-                ).denyAll()
+                ).hasAnyRole(
+                        "DOCENTE",
+                        "INSTRUCTOR",
+                        "ESTUDIANTE"
+                )
+
+                // Permitir gestionar documentos
+                .requestMatchers(
+                        "/api/documentos",
+                        "/api/documentos/**"
+                ).hasAnyRole(
+                        "DOCENTE",
+                        "INSTRUCTOR"
+                )
+
+                // Permitir acceso a cursos con autenticación
+                .requestMatchers(
+                        "/api/cursos",
+                        "/api/cursos/**"
+                ).authenticated()
+
+                // Permitir gestionar rúbricas
+                .requestMatchers(
+                        "/api/rubricas",
+                        "/api/rubricas/**"
+                ).hasAnyRole(
+                        "DOCENTE",
+                        "INSTRUCTOR"
+                )
+
+                // Permitir consultar matrículas
+                .requestMatchers(
+                        HttpMethod.GET,
+                        "/api/matriculas",
+                        "/api/matriculas/**"
+                ).hasAnyRole(
+                        "DOCENTE",
+                        "INSTRUCTOR",
+                        "ESTUDIANTE"
+                )
+
+                // Permitir gestionar matrículas
+                .requestMatchers(
+                        "/api/matriculas",
+                        "/api/matriculas/**"
+                ).hasAnyRole(
+                        "DOCENTE",
+                        "INSTRUCTOR"
+                )
+
+                // Permitir consultar evaluaciones
+                .requestMatchers(
+                        HttpMethod.GET,
+                        "/api/evaluaciones",
+                        "/api/evaluaciones/**"
+                ).hasAnyRole(
+                        "DOCENTE",
+                        "INSTRUCTOR",
+                        "ESTUDIANTE"
+                )
+
+                // Permitir gestionar evaluaciones
+                .requestMatchers(
+                        "/api/evaluaciones",
+                        "/api/evaluaciones/**"
+                ).hasAnyRole(
+                        "DOCENTE",
+                        "INSTRUCTOR"
+                )
+
+                // Permitir consultar calificaciones
+                .requestMatchers(
+                        HttpMethod.GET,
+                        "/api/calificaciones",
+                        "/api/calificaciones/**"
+                ).hasAnyRole(
+                        "DOCENTE",
+                        "INSTRUCTOR",
+                        "ESTUDIANTE"
+                )
+
+                // Permitir registrar calificaciones
+                .requestMatchers(
+                        HttpMethod.POST,
+                        "/api/calificaciones"
+                ).hasAnyRole(
+                        "DOCENTE",
+                        "INSTRUCTOR"
+                )
+
+                // Permitir verificar Object Storage
+                .requestMatchers(
+                        HttpMethod.GET,
+                        "/api/storage/estado"
+                ).hasAnyRole(
+                        "DOCENTE",
+                        "INSTRUCTOR"
+                )
 
                 // Bloquear cualquier endpoint no autorizado
                 .anyRequest().denyAll()
