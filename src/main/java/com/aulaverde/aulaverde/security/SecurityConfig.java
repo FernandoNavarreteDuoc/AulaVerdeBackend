@@ -106,6 +106,16 @@ public class SecurityConfig {
                         "/api/cursos/**"
                 ).authenticated()
 
+                // Permitir consultar rúbricas de evaluaciones
+                .requestMatchers(
+                        HttpMethod.GET,
+                        "/api/rubricas/evaluacion/**"
+                ).hasAnyRole(
+                        "DOCENTE",
+                        "INSTRUCTOR",
+                        "ESTUDIANTE"
+                )
+
                 // Permitir gestionar rúbricas
                 .requestMatchers(
                         "/api/rubricas",
