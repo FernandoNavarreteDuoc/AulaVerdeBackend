@@ -1,0 +1,50 @@
+package com.aulaverde.aulaverde.controller;
+
+import com.aulaverde.aulaverde.DTO.LoginDTO;
+import com.aulaverde.aulaverde.DTO.RegistroDTO;
+import com.aulaverde.aulaverde.DTO.UsuarioDTO;
+import com.aulaverde.aulaverde.DTO.LoginResponseDTO;
+
+import com.aulaverde.aulaverde.service.AuthService;
+
+import io.swagger.v3.oas.annotations.tags.Tag;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirements;
+
+import jakarta.validation.Valid;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/auth")
+@Tag(name = "Autenticación", description = "Registro e inicio de sesión de usuarios")
+@SecurityRequirements
+public class AuthController {
+
+    @Autowired
+    private AuthService authService;
+
+    // Registrar usuario
+    @Operation(summary = "Registrar un nuevo usuario")
+    @PostMapping("/registro")
+    public ResponseEntity<UsuarioDTO> registrar(
+            @Valid @RequestBody RegistroDTO dto) {
+
+        return ResponseEntity
+                .status(HttpStatus.CREATED)
+                .body(authService.registrar(dto));
+    }
+
+    // Iniciar sesión y generar token JWT
+    @Operation(summary = "Iniciar sesión y obtener token JWT")
+    @PostMapping("/login")
+    public ResponseEntity<LoginResponseDTO> login(
+            @Valid @RequestBody LoginDTO dto) {
+
+        return ResponseEntity.ok(
+                authService.login(dto));
+    }
+}
